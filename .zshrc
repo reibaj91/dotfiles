@@ -1,6 +1,9 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
+# Homebrew (Apple Silicon)
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
 
@@ -107,8 +110,35 @@ source $ZSH/oh-my-zsh.sh
 export M2_HOME=/usr/local/apache-maven
 export PATH=$M2_HOME/bin:$PATH
 
+# MySQL client (from previous config)
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+
 # Powerlevel10k configuration (disabled - using agnoster theme)
 # [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 # Hide username in prompt (agnoster theme)
 DEFAULT_USER=$USER
+
+# Google Cloud SDK (from previous config)
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f "$HOME/dev/COMMON/TOOLS/GCP/google-cloud-sdk/path.zsh.inc" ]; then . "$HOME/dev/COMMON/TOOLS/GCP/google-cloud-sdk/path.zsh.inc"; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f "$HOME/dev/COMMON/TOOLS/GCP/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/dev/COMMON/TOOLS/GCP/google-cloud-sdk/completion.zsh.inc"; fi
+
+# Aliases (from previous config)
+alias wrk="cd ~/dev/vitaly/Workspace"
+alias vplay="cd ~/dev/vitaly/TPS"
+alias mci="mvn clean install"
+alias mcs="mvn clean install -DskipTests"
+alias greset="git reset --soft HEAD~1"
+alias gdev="git checkout develop"
+alias gmain="git checkout main"
+alias grbs="git pull --rebase origin develop"
+
+# ~/.local/bin on PATH (from previous config)
+if [ -f "$HOME/.local/bin/env" ]; then . "$HOME/.local/bin/env"; fi
+
+# Colima + Testcontainers (WLS-29): que Testcontainers encuentre el daemon de Colima
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/var/run/docker.sock"
