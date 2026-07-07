@@ -37,7 +37,7 @@ The macOS zsh stack maps to a PowerShell-native equivalent under `windows/`:
 | git plugin | posh-git |
 | Homebrew | winget |
 | Terminal.app / Ghostty | Windows Terminal |
-| MesloLGS NF | MesloLGS NF (same font) |
+| MesloLGS NF | MesloLGS Nerd Font Mono (same font, Windows face name) |
 | Herdr | Herdr (Windows beta) |
 
 ```powershell
