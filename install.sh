@@ -36,4 +36,32 @@ echo "Creating symlinks..."
 ln -sf "$SCRIPT_DIR/.zshrc" "$HOME/.zshrc"
 ln -sf "$SCRIPT_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 
+# Claude Code statusline
+mkdir -p "$HOME/.claude"
+ln -sf "$SCRIPT_DIR/claude/statusline.sh" "$HOME/.claude/statusline.sh"
+if command -v jq >/dev/null 2>&1; then
+    SETTINGS="$HOME/.claude/settings.json"
+    [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+    TMP=$(mktemp)
+    jq '.statusLine = {"type": "command", "command": "bash \"$HOME/.claude/statusline.sh\""}' "$SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS"
+    echo "Claude Code statusline wired into $SETTINGS"
+else
+    echo "jq not found: add this to ~/.claude/settings.json manually:"
+    echo '  "statusLine": { "type": "command", "command": "bash \"$HOME/.claude/statusline.sh\"" }'
+fi
+
+# Ghostty
+GHOSTTY_DIR="$HOME/Library/Application Support/com.mitchellh.ghostty"
+mkdir -p "$GHOSTTY_DIR"
+ln -sf "$SCRIPT_DIR/ghostty/config.ghostty" "$GHOSTTY_DIR/config.ghostty"
+
+# Terminal.app profile
+if command -v open >/dev/null 2>&1 && command -v defaults >/dev/null 2>&1; then
+    open "$SCRIPT_DIR/Basic.terminal"
+    sleep 1
+    defaults write com.apple.Terminal "Default Window Settings" -string "Basic 1"
+    defaults write com.apple.Terminal "Startup Window Settings" -string "Basic 1"
+    echo "Terminal.app profile 'Basic' imported and set as default (check Terminal > Settings if the name differs)"
+fi
+
 echo "Done! Restart your terminal or run: source ~/.zshrc"

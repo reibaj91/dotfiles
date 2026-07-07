@@ -1,0 +1,36 @@
+font-family = "SF Mono"
+font-size = 13
+
+background = #071B22
+foreground = #7C8B8D
+cursor-color = #9C9A9C
+selection-background = #7C8B8D
+
+background-opacity = 1
+background-blur-radius = 0
+
+cursor-style = underline
+cursor-style-blink = true
+
+mouse-hide-while-typing = true
+mouse-scroll-multiplier = 2
+copy-on-select = clipboard
+adjust-cell-width = "10%"
+focus-follows-mouse = true
+
+palette = 0=#000000
+palette = 1=#990000
+palette = 2=#72A52E
+palette = 3=#96993D
+palette = 4=#2B8BD2
+palette = 5=#AF6CB0
+palette = 6=#6FB2A9
+palette = 7=#BFBFBF
+palette = 8=#666666
+palette = 9=#E52F31
+palette = 10=#67D85D
+palette = 11=#E6E45A
+palette = 12=#5255FE
+palette = 13=#CF63E5
+palette = 14=#93E6E4
+palette = 15=#E5E5E5
