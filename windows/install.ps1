@@ -31,13 +31,22 @@ Install-WingetPackage 'Microsoft.PowerShell'
 Install-WingetPackage 'Microsoft.WindowsTerminal'
 Install-WingetPackage 'Git.Git'
 Install-WingetPackage 'JanDeDobbeleer.OhMyPosh'
+Install-WingetPackage 'jqlang.jq'
 
 # refresh PATH so freshly installed tools are callable in this session
 $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
             [Environment]::GetEnvironmentVariable('Path', 'User')
 
 # --- Nerd Font (MesloLGS) via Oh My Posh ---
-if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
+# `oh-my-posh font install` registers per-user fonts under HKCU, not HKLM, so check that key
+# directly (fast, no external process) instead of always re-running the installer: its
+# progress-bar/spinner UI can take several minutes to release control when stdout isn't a
+# real console (e.g. run through an automation harness), so skip it once the font is present.
+$fontsKey = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+$mesloInstalled = (Get-ItemProperty -Path $fontsKey -ErrorAction SilentlyContinue).PSObject.Properties.Name -like 'MesloLGS*'
+if ($mesloInstalled) {
+    Write-Host "MesloLGS Nerd Font already installed"
+} elseif (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     Write-Host "Installing MesloLGS Nerd Font..."
     oh-my-posh font install Meslo
 } else {
@@ -45,8 +54,25 @@ if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
 }
 
 # --- PowerShell modules ---
+# Bootstrap the NuGet provider non-interactively first: on a stock Windows PowerShell 5.1
+# install (PowerShellGet 1.0.0.1), the first Install-Module call prompts "Install NuGet
+# provider now? [Y/N]" and -Force does NOT suppress it, which hangs forever in a
+# non-interactive shell.
+if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing NuGet provider..."
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+}
 if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne 'Trusted') {
     Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+}
+# PSReadLine needs its own version check (not just presence): Windows PowerShell 5.1 ships
+# PSReadLine 2.0.0 out of the box, which the profile's -PredictionSource/-PredictionViewStyle
+# calls need 2.2.0+ for (Predictive IntelliSense). A plain "is it installed" check would see
+# the bundled 2.0.0 and skip installing a newer one.
+$psreadline = Get-Module -ListAvailable PSReadLine | Sort-Object Version -Descending | Select-Object -First 1
+if (-not $psreadline -or $psreadline.Version -lt [Version]'2.2.0') {
+    Write-Host "Installing/updating PSReadLine..."
+    Install-Module PSReadLine -Scope CurrentUser -Force -AllowClobber -SkipPublisherCheck
 }
 foreach ($mod in 'posh-git', 'Terminal-Icons') {
     if (-not (Get-Module -ListAvailable -Name $mod)) {
@@ -126,7 +152,10 @@ function Update-WindowsTerminal {
         $json.profiles | Add-Member -NotePropertyName defaults -NotePropertyValue ([pscustomobject]@{}) -Force
     }
     $defaults = $json.profiles.defaults
-    $font = [pscustomobject]@{ face = 'MesloLGS NF' }
+    # oh-my-posh's Windows font package registers full Nerd Fonts names, not the short "MesloLGS NF"
+    # alias from the macOS Homebrew cask; "Mono" is the variant Nerd Fonts recommends for
+    # grid-based terminals (icon glyphs forced to one cell width, matching Windows Terminal's model).
+    $font = [pscustomobject]@{ face = 'MesloLGS Nerd Font Mono' }
     if ($defaults.PSObject.Properties.Name -contains 'font') { $defaults.font = $font }
     else { $defaults | Add-Member -NotePropertyName font -NotePropertyValue $font }
     if ($defaults.PSObject.Properties.Name -contains 'colorScheme') { $defaults.colorScheme = 'BasicDotfiles' }
@@ -134,7 +163,7 @@ function Update-WindowsTerminal {
 
     try {
         $json | ConvertTo-Json -Depth 32 | Set-Content $settingsPath -Encoding utf8
-        Write-Host "Windows Terminal patched (font=MesloLGS NF, scheme=BasicDotfiles); backup at $settingsPath.backup"
+        Write-Host "Windows Terminal patched (font=MesloLGS Nerd Font Mono, scheme=BasicDotfiles); backup at $settingsPath.backup"
     } catch {
         Write-Warning "Could not write Windows Terminal settings.json ($($_.Exception.Message)); restoring backup."
         Copy-Item "$settingsPath.backup" $settingsPath -Force
@@ -148,6 +177,49 @@ if (-not (Get-Command herdr -ErrorAction SilentlyContinue)) {
     Invoke-RestMethod https://herdr.dev/install.ps1 | Invoke-Expression
 } else {
     Write-Host "  herdr already installed"
+}
+
+# --- Claude Code statusline (bash script; needs Git Bash, installed via Git.Git above) ---
+# Git for Windows only adds Git\cmd to PATH (by design, to avoid shadowing other tools), so a
+# bare "bash" on PATH resolves to Windows' WSL-launcher stub in System32, NOT Git Bash — that
+# stub can't run this script (no WSL distro, or a foreign filesystem view even if there is one).
+# Derive Git Bash's real bash.exe from git.exe's own location instead of trusting PATH.
+$gitCmdPath = (Get-Command git -ErrorAction SilentlyContinue).Source
+$bashExe = if ($gitCmdPath) { Join-Path (Split-Path (Split-Path $gitCmdPath)) 'bin\bash.exe' } else { $null }
+if ($bashExe -and (Test-Path $bashExe)) {
+    $claudeDir = Join-Path $HOME '.claude'
+    New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
+
+    $statuslineSrc = Join-Path $scriptDir '..\claude\statusline.sh'
+    $statuslineDst = Join-Path $claudeDir 'statusline.sh'
+    if ((Test-Path $statuslineDst) -and -not (Get-Item $statuslineDst).LinkType) {
+        Copy-Item $statuslineDst "$statuslineDst.backup" -Force
+    }
+    try {
+        New-Item -ItemType SymbolicLink -Path $statuslineDst -Target $statuslineSrc -Force -ErrorAction Stop | Out-Null
+    } catch {
+        Copy-Item $statuslineSrc $statuslineDst -Force
+    }
+
+    $settingsPath = Join-Path $claudeDir 'settings.json'
+    try {
+        $settings = if (Test-Path $settingsPath) {
+            Copy-Item $settingsPath "$settingsPath.backup" -Force
+            Get-Content $settingsPath -Raw | ConvertFrom-Json
+        } else {
+            [pscustomobject]@{}
+        }
+        # Both paths are quoted individually: bash.exe's own path contains a space ("Program Files").
+        $statusLine = [pscustomobject]@{ type = 'command'; command = "`"$bashExe`" `"$statuslineDst`"" }
+        if ($settings.PSObject.Properties.Name -contains 'statusLine') { $settings.statusLine = $statusLine }
+        else { $settings | Add-Member -NotePropertyName statusLine -NotePropertyValue $statusLine }
+        $settings | ConvertTo-Json -Depth 32 | Set-Content $settingsPath -Encoding utf8
+        Write-Host "Claude Code statusline wired -> $settingsPath"
+    } catch {
+        Write-Warning "Could not wire Claude Code statusline into settings.json ($($_.Exception.Message))."
+    }
+} else {
+    Write-Warning "Git Bash's bash.exe not found next to git.exe; the Claude Code statusline needs it. Re-run after Git.Git installs, or install manually."
 }
 
 Write-Host "Done! Open a new Windows Terminal tab (or run: . `$PROFILE)." -ForegroundColor Green
