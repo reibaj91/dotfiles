@@ -87,7 +87,23 @@ function Update-WindowsTerminal {
     }
 
     Copy-Item $settingsPath "$settingsPath.backup" -Force
-    $json = Get-Content $settingsPath -Raw | ConvertFrom-Json
+
+    try {
+        # Windows Terminal ships settings.json as JSONC (e.g. "// Add custom color schemes to
+        # this array."). PowerShell 5.1's ConvertFrom-Json has zero JSONC tolerance and throws
+        # on any comment, so strip // and /* */ comments while leaving string literals (URLs
+        # like "https://aka.ms/...") untouched.
+        $raw = Get-Content $settingsPath -Raw
+        $noComments = [regex]::Replace(
+            $raw,
+            '"(?:\\.|[^"\\])*"|(?<comment>//[^\r\n]*|/\*[\s\S]*?\*/)',
+            { param($m) if ($m.Groups['comment'].Success) { '' } else { $m.Value } }
+        )
+        $json = $noComments | ConvertFrom-Json
+    } catch {
+        Write-Warning "Could not parse Windows Terminal settings.json ($($_.Exception.Message)); skipping terminal patch."
+        return
+    }
 
     $scheme = [ordered]@{
         name = 'BasicDotfiles'; background = '#071B22'; foreground = '#7C8B8D'
@@ -116,8 +132,13 @@ function Update-WindowsTerminal {
     if ($defaults.PSObject.Properties.Name -contains 'colorScheme') { $defaults.colorScheme = 'BasicDotfiles' }
     else { $defaults | Add-Member -NotePropertyName colorScheme -NotePropertyValue 'BasicDotfiles' }
 
-    $json | ConvertTo-Json -Depth 32 | Set-Content $settingsPath -Encoding utf8
-    Write-Host "Windows Terminal patched (font=MesloLGS NF, scheme=BasicDotfiles); backup at $settingsPath.backup"
+    try {
+        $json | ConvertTo-Json -Depth 32 | Set-Content $settingsPath -Encoding utf8
+        Write-Host "Windows Terminal patched (font=MesloLGS NF, scheme=BasicDotfiles); backup at $settingsPath.backup"
+    } catch {
+        Write-Warning "Could not write Windows Terminal settings.json ($($_.Exception.Message)); restoring backup."
+        Copy-Item "$settingsPath.backup" $settingsPath -Force
+    }
 }
 Update-WindowsTerminal
 
