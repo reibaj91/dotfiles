@@ -9,6 +9,7 @@ Personal zsh, terminal and Claude Code configuration.
 - `Basic.terminal` - Terminal.app profile (colors, font, cursor)
 - `ghostty/config.ghostty` - Ghostty terminal config
 - `claude/statusline.sh` - Claude Code statusline (powerline + rate limits bar)
+- `windows/` - PowerShell equivalent for Windows (Oh My Posh + PSReadLine + posh-git)
 
 ### Plugins
 
@@ -24,6 +25,37 @@ cd ~/dotfiles
 chmod +x install.sh
 ./install.sh
 ```
+
+### Windows (PowerShell)
+
+The macOS zsh stack maps to a PowerShell-native equivalent under `windows/`:
+
+| macOS (zsh) | Windows (PowerShell) |
+| --- | --- |
+| oh-my-zsh + agnoster | Oh My Posh (`agnoster` theme) |
+| zsh-autosuggestions / syntax-highlighting | PSReadLine (Predictive IntelliSense) |
+| git plugin | posh-git |
+| Homebrew | winget |
+| Terminal.app / Ghostty | Windows Terminal |
+| MesloLGS NF | MesloLGS NF (same font) |
+| Herdr | Herdr (Windows beta) |
+
+```powershell
+git clone https://github.com/reibaj91/dotfiles.git $HOME\dotfiles
+cd $HOME\dotfiles
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\windows\install.ps1
+```
+
+`install.ps1` installs the packages via winget, the MesloLGS Nerd Font via Oh My Posh, links the
+PowerShell profile, patches Windows Terminal (font + `BasicDotfiles` color scheme matching Ghostty),
+and installs Herdr. Notes:
+
+- Symlinking the profile needs Developer Mode or an elevated shell; otherwise it falls back to a copy.
+- Herdr on Windows is a **beta/preview** (ConPTY, not the Unix PTY model); `herdr --remote` isn't in
+  the beta. For a fully stable experience, run the Linux build inside WSL2.
+- The Claude Code statusline (`claude/statusline.sh`) is a bash script and is **not** wired on Windows;
+  it needs Git Bash to run there.
 
 ## Manual setup (if needed)
 
