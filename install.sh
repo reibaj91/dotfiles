@@ -4,6 +4,31 @@ set -e
 
 echo "Installing dotfiles..."
 
+# Bootstrap Homebrew (portable: Apple Silicon -> /opt/homebrew, Intel -> /usr/local)
+if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+else
+    echo "Homebrew not found. Installing..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+fi
+
+# Nerd Font for Powerline glyphs (agnoster / p10k). Without it the prompt shows tofu boxes.
+if command -v brew >/dev/null 2>&1; then
+    if ! ls "$HOME/Library/Fonts"/MesloLGS* >/dev/null 2>&1 && ! ls "/Library/Fonts"/MesloLGS* >/dev/null 2>&1; then
+        echo "Installing MesloLGS Nerd Font..."
+        brew install --cask font-meslo-lg-nerd-font || echo "Font install failed; run: brew install --cask font-meslo-lg-nerd-font"
+    fi
+else
+    echo "brew unavailable: install MesloLGS NF manually or the prompt glyphs will be missing."
+fi
+
 # Install oh-my-zsh if not present
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     echo "Installing oh-my-zsh..."
@@ -26,10 +51,17 @@ fi
 # Backup existing configs
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -f "$HOME/.zshrc" ]; then
-    echo "Backing up existing .zshrc to .zshrc.backup"
-    cp "$HOME/.zshrc" "$HOME/.zshrc.backup"
-fi
+# Back up any existing real file (not a symlink) before we overwrite it
+backup_if_real() {
+    local target="$1"
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+        echo "Backing up existing $target to $target.backup"
+        cp "$target" "$target.backup"
+    fi
+}
+
+backup_if_real "$HOME/.zshrc"
+backup_if_real "$HOME/.p10k.zsh"
 
 # Create symlinks
 echo "Creating symlinks..."
@@ -53,6 +85,7 @@ fi
 # Ghostty
 GHOSTTY_DIR="$HOME/Library/Application Support/com.mitchellh.ghostty"
 mkdir -p "$GHOSTTY_DIR"
+backup_if_real "$GHOSTTY_DIR/config.ghostty"
 ln -sf "$SCRIPT_DIR/ghostty/config.ghostty" "$GHOSTTY_DIR/config.ghostty"
 
 # Terminal.app profile

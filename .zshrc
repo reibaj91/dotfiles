@@ -1,8 +1,12 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
-# Homebrew (Apple Silicon)
-eval "$(/opt/homebrew/bin/brew shellenv)"
+# Homebrew (portable: Apple Silicon uses /opt/homebrew, Intel uses /usr/local)
+if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
 
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -106,12 +110,16 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Maven configuration (from previous config)
-export M2_HOME=/usr/local/apache-maven
-export PATH=$M2_HOME/bin:$PATH
+# Maven configuration (manual download fallback; brew-installed mvn is already on PATH)
+if [ -d /usr/local/apache-maven ]; then
+    export M2_HOME=/usr/local/apache-maven
+    export PATH=$M2_HOME/bin:$PATH
+fi
 
-# MySQL client (from previous config)
-export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+# MySQL client (derived from the active Homebrew prefix)
+if [ -n "$HOMEBREW_PREFIX" ] && [ -d "$HOMEBREW_PREFIX/opt/mysql-client/bin" ]; then
+    export PATH="$HOMEBREW_PREFIX/opt/mysql-client/bin:$PATH"
+fi
 
 # Powerlevel10k configuration (disabled - using agnoster theme)
 # [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh

@@ -64,8 +64,19 @@ manually to `~/.claude/settings.json`:
 The script uses `jq` (JSON) and expects Claude Code's native `context_window` / `rate_limits`
 fields in the statusline input — no extra setup needed beyond having `jq` installed.
 
+### Nerd Font (required for the prompt)
+
+The `agnoster` theme (and Powerlevel10k) render the prompt with Powerline glyphs — segment
+separators, the git branch icon, etc. Without a patched font you'll see `?`-in-a-box placeholders.
+Both the Terminal.app profile and the Ghostty config use `MesloLGS NF`. Install the Meslo Nerd Font
+family if it's missing:
+
+```bash
+brew install --cask font-meslo-lg-nerd-font
+```
+
 ### Ghostty (optional)
 
 `install.sh` symlinks `ghostty/config.ghostty` to
-`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`. Uses `SF Mono`; install it
-or change `font-family` if it's not available on the new machine.
+`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`. Uses `MesloLGS NF` (see above);
+change `font-family` if you prefer a different Nerd Font.
