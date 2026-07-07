@@ -97,4 +97,17 @@ if command -v open >/dev/null 2>&1 && command -v defaults >/dev/null 2>&1; then
     echo "Terminal.app profile 'Basic' imported and set as default (check Terminal > Settings if the name differs)"
 fi
 
+# Herdr: persistent sessions + AI agent notifications (.zshrc auto-attaches new terminals to it)
+if command -v brew >/dev/null 2>&1; then
+    if ! command -v herdr >/dev/null 2>&1; then
+        echo "Installing herdr..."
+        brew install herdr || echo "herdr install failed; run: brew install herdr"
+    fi
+    if command -v herdr >/dev/null 2>&1 && command -v claude >/dev/null 2>&1; then
+        herdr integration install claude || true
+    fi
+else
+    echo "brew unavailable: install herdr manually (https://herdr.dev) or the auto-attach in .zshrc will no-op."
+fi
+
 echo "Done! Restart your terminal or run: source ~/.zshrc"
