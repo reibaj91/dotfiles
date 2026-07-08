@@ -10,7 +10,6 @@ Personal zsh, terminal and Claude Code configuration.
 - `ghostty/config.ghostty` - Ghostty terminal config
 - `claude/statusline.sh` - Claude Code statusline (powerline + rate limits bar)
 - `windows/` - PowerShell equivalent for Windows (Oh My Posh + PSReadLine + posh-git)
-- `lazygit/` - lazygit config, themed to match the terminal palette
 
 ### Plugins
 
@@ -57,13 +56,6 @@ and installs Herdr. Notes:
   the beta. For a fully stable experience, run the Linux build inside WSL2.
 - The Claude Code statusline (`claude/statusline.sh`) is a bash script and is **not** wired on Windows;
   it needs Git Bash to run there.
-
-## lazygit
-
-`install.sh` (macOS) and `windows/install.ps1` install lazygit and link `lazygit/` into its config
-location (`~/.config/lazygit` on macOS/Linux, `%APPDATA%\lazygit` on Windows). lazygit inherits the
-terminal's 16 colors and only overrides accents in `lazygit/config.yml` to match the Ghostty /
-Windows Terminal palette.
 
 ## Manual setup (if needed)
 

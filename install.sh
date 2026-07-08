@@ -110,15 +110,4 @@ else
     echo "brew unavailable: install herdr manually (https://herdr.dev) or the auto-attach in .zshrc will no-op."
 fi
 
-# lazygit
-if command -v brew >/dev/null 2>&1; then
-    command -v lazygit >/dev/null 2>&1 || { echo "Installing lazygit..."; brew install lazygit || echo "lazygit install failed; run: brew install lazygit"; }
-else
-    echo "brew unavailable: install lazygit manually."
-fi
-
-mkdir -p "$HOME/.config"
-backup_if_real "$HOME/.config/lazygit"
-ln -sfn "$SCRIPT_DIR/lazygit" "$HOME/.config/lazygit"
-
 echo "Done! Restart your terminal or run: source ~/.zshrc"
