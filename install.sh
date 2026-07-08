@@ -110,25 +110,15 @@ else
     echo "brew unavailable: install herdr manually (https://herdr.dev) or the auto-attach in .zshrc will no-op."
 fi
 
-# Neovim (LazyVim) + lazygit
+# lazygit
 if command -v brew >/dev/null 2>&1; then
-    for pkg in neovim lazygit; do
-        command -v "$pkg" >/dev/null 2>&1 || { echo "Installing $pkg..."; brew install "$pkg" || echo "$pkg install failed; run: brew install $pkg"; }
-    done
-    # jdtls (Java LSP) needs a JDK 17+; install Temurin if no java is present
-    if ! command -v java >/dev/null 2>&1; then
-        echo "Installing Temurin JDK (needed by the Java LSP)..."
-        brew install --cask temurin || echo "JDK install failed; install a JDK 17+ manually."
-    fi
+    command -v lazygit >/dev/null 2>&1 || { echo "Installing lazygit..."; brew install lazygit || echo "lazygit install failed; run: brew install lazygit"; }
 else
-    echo "brew unavailable: install neovim + lazygit manually."
+    echo "brew unavailable: install lazygit manually."
 fi
 
 mkdir -p "$HOME/.config"
-backup_if_real "$HOME/.config/nvim"
-ln -sfn "$SCRIPT_DIR/nvim" "$HOME/.config/nvim"
 backup_if_real "$HOME/.config/lazygit"
 ln -sfn "$SCRIPT_DIR/lazygit" "$HOME/.config/lazygit"
 
 echo "Done! Restart your terminal or run: source ~/.zshrc"
-echo "First 'nvim' launch will bootstrap LazyVim + the Java toolchain (jdtls) via Mason."

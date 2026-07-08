@@ -222,15 +222,10 @@ if ($bashExe -and (Test-Path $bashExe)) {
     Write-Warning "Git Bash's bash.exe not found next to git.exe; the Claude Code statusline needs it. Re-run after Git.Git installs, or install manually."
 }
 
-# --- Neovim (LazyVim) + lazygit ---
-Install-WingetPackage 'Neovim.Neovim'
+# --- lazygit ---
 Install-WingetPackage 'JesseDuffield.lazygit'
-# jdtls (Java LSP) needs a JDK 17+; install Temurin if no java is present
-if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
-    Install-WingetPackage 'EclipseAdoptium.Temurin.21.JDK'
-}
 
-# Link config dirs (symlink to repo; fall back to a recursive copy without Developer Mode).
+# Link config dir (symlink to repo; fall back to a recursive copy without Developer Mode).
 function Link-ConfigDir([string]$Source, [string]$Dest) {
     $parent = Split-Path -Parent $Dest
     if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
@@ -247,9 +242,7 @@ function Link-ConfigDir([string]$Source, [string]$Dest) {
         Write-Host "Copied $Source -> $Dest (symlink needs Developer Mode/admin)"
     }
 }
-# nvim lives in %LOCALAPPDATA%\nvim; lazygit uses %APPDATA%\lazygit (Roaming) on Windows.
-Link-ConfigDir (Join-Path $scriptDir '..\nvim')    (Join-Path $env:LOCALAPPDATA 'nvim')
+# lazygit uses %APPDATA%\lazygit (Roaming) on Windows.
 Link-ConfigDir (Join-Path $scriptDir '..\lazygit') (Join-Path $env:APPDATA 'lazygit')
 
 Write-Host "Done! Open a new Windows Terminal tab (or run: . `$PROFILE)." -ForegroundColor Green
-Write-Host "First 'nvim' launch will bootstrap LazyVim + the Java toolchain (jdtls) via Mason." -ForegroundColor Green
