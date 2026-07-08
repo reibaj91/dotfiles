@@ -57,6 +57,40 @@ and installs Herdr. Notes:
 - The Claude Code statusline (`claude/statusline.sh`) is a bash script and is **not** wired on Windows;
   it needs Git Bash to run there.
 
+### Ubuntu / Debian (zsh)
+
+`install.sh` detects Linux via `uname -s` and swaps out every macOS-only piece for a Linux-native
+equivalent — no Homebrew required on Linux at all:
+
+| macOS | Ubuntu / Debian |
+| --- | --- |
+| Homebrew bootstrap | skipped entirely (nothing in this repo needs it on Linux) |
+| `brew install --cask font-meslo-lg-nerd-font` | `.ttf` files downloaded from `romkatv/powerlevel10k-media` into `~/.local/share/fonts` + `fc-cache -f` |
+| `~/Library/Application Support/com.mitchellh.ghostty/config.ghostty` | `~/.config/ghostty/config` (XDG path) |
+| `Basic.terminal` (Terminal.app) | skipped — no equivalent, use Ghostty |
+| `brew install herdr` (silent) | asks `Install Herdr? [y/N]` before running `curl -fsSL https://herdr.dev/install.sh \| sh` |
+
+```bash
+git clone https://github.com/reibaj91/dotfiles.git ~/dotfiles
+cd ~/dotfiles
+chmod +x install.sh
+./install.sh
+```
+
+Notes:
+
+- Ghostty itself isn't installed by the script (same as on macOS) — install it separately from
+  https://ghostty.org before running `install.sh`, otherwise the config just sits there unused.
+- `jq` is needed for the Claude Code statusline wiring; if missing, install it with
+  `sudo apt install jq` and re-run `install.sh`, or add the `statusLine` block manually (see
+  below).
+- Tested on Ubuntu; other Debian-based distros with `apt` should work the same for the manual
+  steps above, but the script itself doesn't special-case them beyond the generic `Linux` branch.
+- Herdr installs silently on macOS (via brew) but **prompts for confirmation on Linux** before
+  running its installer, since it changes how every new terminal behaves (auto-attach). Answering
+  "n", pressing enter, or running `install.sh` non-interactively (no TTY on stdin) all skip it —
+  the auto-attach block in `.zshrc` just no-ops until Herdr is installed manually later.
+
 ## Manual setup (if needed)
 
 ### Maven (optional)
@@ -104,14 +138,20 @@ Both the Terminal.app profile and the Ghostty config use `MesloLGS NF`. Install 
 family if it's missing:
 
 ```bash
+# macOS
 brew install --cask font-meslo-lg-nerd-font
 ```
+
+On Linux, `install.sh` downloads the four `MesloLGS NF` `.ttf` files straight from
+`romkatv/powerlevel10k-media` into `~/.local/share/fonts` and runs `fc-cache -f` — no Homebrew cask
+equivalent exists on Linux, so this is handled with a direct download instead.
 
 ### Ghostty (optional)
 
 `install.sh` symlinks `ghostty/config.ghostty` to
-`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`. Uses `MesloLGS NF` (see above);
-change `font-family` if you prefer a different Nerd Font.
+`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty` on macOS, or `~/.config/ghostty/config`
+on Linux (XDG path). Uses `MesloLGS NF` (see above); change `font-family` if you prefer a different
+Nerd Font.
 
 ### Herdr (persistent sessions + AI agent notifications)
 
@@ -120,7 +160,8 @@ in a background server, so closing a terminal window by accident doesn't kill yo
 tracks the status (`idle`/`working`/`blocked`) of AI coding agents running inside it, firing sound
 notifications on state changes.
 
-Requires `brew install herdr`. Two pieces:
+Requires `brew install herdr` on macOS, or `curl -fsSL https://herdr.dev/install.sh | sh` on Linux
+(no Homebrew needed there). Two pieces:
 
 1. **Auto-attach on every new terminal** — `.zshrc` has a guarded block (search for
    `Auto-attach a Herdr`) that `exec`s into `herdr` on any new interactive shell, unless you're
