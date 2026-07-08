@@ -10,6 +10,8 @@ Personal zsh, terminal and Claude Code configuration.
 - `ghostty/config.ghostty` - Ghostty terminal config
 - `claude/statusline.sh` - Claude Code statusline (powerline + rate limits bar)
 - `windows/` - PowerShell equivalent for Windows (Oh My Posh + PSReadLine + posh-git)
+- `nvim/` - Neovim config (LazyVim + Java LSP), themed to match the terminal palette
+- `lazygit/` - lazygit config, themed to match the terminal palette
 
 ### Plugins
 
@@ -56,6 +58,25 @@ and installs Herdr. Notes:
   the beta. For a fully stable experience, run the Linux build inside WSL2.
 - The Claude Code statusline (`claude/statusline.sh`) is a bash script and is **not** wired on Windows;
   it needs Git Bash to run there.
+
+## Neovim (Java) + lazygit
+
+`install.sh` (macOS) and `windows/install.ps1` install Neovim + lazygit and link `nvim/` and
+`lazygit/` into their config locations:
+
+| | macOS/Linux | Windows |
+| --- | --- | --- |
+| Neovim | `~/.config/nvim` | `%LOCALAPPDATA%\nvim` |
+| lazygit | `~/.config/lazygit` | `%APPDATA%\lazygit` |
+
+- **Neovim** is [LazyVim](https://www.lazyvim.org) with the Java extra enabled (`nvim/lazyvim.json`):
+  `jdtls` (Eclipse JDT language server), `nvim-dap` + `java-debug-adapter`, and `java-test`. These
+  install automatically via Mason on the first `nvim` launch. Requires a JDK 17+ (the installer
+  adds Temurin if no `java` is found).
+- **Theme**: `nvim/lua/plugins/colorscheme.lua` generates a colorscheme (`basicdotfiles`) from the
+  same 16-color palette as the terminal via `mini.base16`, so the editor matches Ghostty / Windows
+  Terminal exactly. lazygit inherits the terminal colors and only overrides accents in
+  `lazygit/config.yml`.
 
 ## Manual setup (if needed)
 
