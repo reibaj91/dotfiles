@@ -83,6 +83,41 @@ backup_if_real() {
     fi
 }
 
+# Optionally install a package with the system package manager (brew / apt-get / pacman).
+# Usage: pkg_install <label> <brew-pkg> <apt-pkg> <pacman-pkg>
+# Asks for consent (default No) and only when stdin is a TTY. Returns 0 only if the user
+# accepted and the install succeeded; otherwise warns with the manual command and returns 1.
+pkg_install() {
+    local label="$1" brew_pkg="$2" apt_pkg="$3" pacman_pkg="$4" cmd=""
+    if [ "$OS_TYPE" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+        cmd="brew install $brew_pkg"
+    elif command -v apt-get >/dev/null 2>&1; then
+        cmd="sudo apt-get install -y $apt_pkg"
+    elif command -v pacman >/dev/null 2>&1; then
+        cmd="sudo pacman -S --noconfirm $pacman_pkg"
+    else
+        echo "No supported package manager (brew/apt-get/pacman) found: install $label manually."
+        return 1
+    fi
+
+    local reply="n"
+    if [ -t 0 ]; then
+        read -r -p "Install $label via '$cmd'? [y/N] " reply
+    else
+        echo "Non-interactive shell: skipping $label install. Run '$cmd' manually if you want it."
+        return 1
+    fi
+    case "$reply" in
+        [Yy]*)
+            $cmd || { echo "$label install failed; run: $cmd"; return 1; }
+            ;;
+        *)
+            echo "Skipping $label. Install it manually with: $cmd"
+            return 1
+            ;;
+    esac
+}
+
 backup_if_real "$HOME/.zshrc"
 backup_if_real "$HOME/.p10k.zsh"
 
@@ -94,6 +129,9 @@ ln -sf "$SCRIPT_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 # Claude Code statusline
 mkdir -p "$HOME/.claude"
 ln -sf "$SCRIPT_DIR/claude/statusline.sh" "$HOME/.claude/statusline.sh"
+if ! command -v jq >/dev/null 2>&1; then
+    pkg_install jq jq jq jq || true
+fi
 if command -v jq >/dev/null 2>&1; then
     SETTINGS="$HOME/.claude/settings.json"
     [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
@@ -102,9 +140,6 @@ if command -v jq >/dev/null 2>&1; then
     echo "Claude Code statusline wired into $SETTINGS"
 else
     echo "jq not found: add this to ~/.claude/settings.json manually"
-    if [ "$OS_TYPE" = "Linux" ]; then
-        echo "  install it with: sudo apt install jq"
-    fi
     echo '  "statusLine": { "type": "command", "command": "bash \"$HOME/.claude/statusline.sh\"" }'
 fi
 
@@ -155,11 +190,135 @@ elif [ "$OS_TYPE" = "Linux" ]; then
             [Yy]*)
                 echo "Installing herdr..."
                 curl -fsSL https://herdr.dev/install.sh | sh || echo "herdr install failed; run: curl -fsSL https://herdr.dev/install.sh | sh"
+                # The installer drops the binary in ~/.local/bin, which may not be on PATH yet for this run;
+                # without it every later `command -v herdr` step (config, plugins, sessions) would be skipped.
+                if [ -x "$HOME/.local/bin/herdr" ]; then
+                    export PATH="$HOME/.local/bin:$PATH"
+                fi
                 ;;
             *)
                 echo "Skipping herdr. The auto-attach block in .zshrc will no-op until you install it manually (https://herdr.dev)."
                 ;;
         esac
+    fi
+fi
+
+if command -v herdr >/dev/null 2>&1; then
+    # Herdr config (theme, notifications). Optional: asks first (default No, TTY only), because it
+    # replaces any existing config. A real file is backed up before being replaced by the symlink.
+    HERDR_CFG_SRC="$SCRIPT_DIR/herdr/config.toml"
+    HERDR_CFG_DST="$HOME/.config/herdr/config.toml"
+    HERDR_CFG_CMD="mkdir -p ~/.config/herdr && ln -sf '$HERDR_CFG_SRC' ~/.config/herdr/config.toml"
+    if [ -L "$HERDR_CFG_DST" ] && [ "$(readlink "$HERDR_CFG_DST")" = "$HERDR_CFG_SRC" ]; then
+        echo "Herdr config already linked."
+    else
+        herdr_cfg_reply="n"
+        if [ -t 0 ]; then
+            read -r -p "Link the Herdr config to $HERDR_CFG_DST? An existing config is backed up and replaced by this repo's theme/panel settings. [y/N] " herdr_cfg_reply
+        else
+            echo "Non-interactive shell: skipping Herdr config. Run '$HERDR_CFG_CMD' manually if you want it."
+        fi
+        case "$herdr_cfg_reply" in
+            [Yy]*)
+                mkdir -p "$HOME/.config/herdr"
+                backup_if_real "$HERDR_CFG_DST"
+                ln -sf "$HERDR_CFG_SRC" "$HERDR_CFG_DST"
+                ;;
+            *)
+                if [ -t 0 ]; then
+                    echo "Skipping Herdr config. Link it manually with: $HERDR_CFG_CMD"
+                fi
+                ;;
+        esac
+    fi
+fi
+
+# Herdr plugins, pinned by commit. Each one is optional and asks for consent (default No, TTY only).
+# Herdr itself may still show its own confirmation; --yes is deliberately not passed.
+# Usage: herdr_plugin_install <label> <owner/repo> <commit>
+herdr_plugin_install() {
+    local label="$1" repo="$2" ref="$3"
+    local cmd="herdr plugin install $repo --ref $ref"
+    if herdr plugin list 2>/dev/null | grep -q "github:$repo@"; then
+        echo "Herdr plugin $label already installed."
+        return 0
+    fi
+    local reply="n"
+    if [ -t 0 ]; then
+        read -r -p "Install Herdr plugin $label via '$cmd'? [y/N] " reply
+    else
+        echo "Non-interactive shell: skipping Herdr plugin $label. Run '$cmd' manually if you want it."
+        return 0
+    fi
+    case "$reply" in
+        [Yy]*) $cmd || echo "Herdr plugin $label install failed; run: $cmd" ;;
+        *) echo "Skipping Herdr plugin $label. Install it manually with: $cmd" ;;
+    esac
+}
+
+if command -v herdr >/dev/null 2>&1; then
+    # auto-title builds from source and needs Go 1.24+ (distro packages are often older, e.g. Ubuntu 24.04 ships 1.22).
+    go_is_recent_enough() {
+        local ver
+        ver="$(go version 2>/dev/null | sed -n 's/.*go\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
+        [ -n "$ver" ] && [ "$(printf '%s\n1.24\n' "$ver" | sort -V | head -n1)" = "1.24" ]
+    }
+    AUTO_TITLE_CMD="herdr plugin install kryptamine/herdr-auto-title --ref 899ee4e4c827129c9920c105f250628ff967ca98"
+    AUTO_TITLE_INSTALLED=0
+    herdr plugin list 2>/dev/null | grep -q "github:kryptamine/herdr-auto-title@" && AUTO_TITLE_INSTALLED=1
+    if [ "$AUTO_TITLE_INSTALLED" -eq 0 ] && ! command -v go >/dev/null 2>&1; then
+        echo "The Herdr auto-title plugin needs Go 1.24+ to build."
+        pkg_install Go go golang go || true
+    fi
+    if [ "$AUTO_TITLE_INSTALLED" -eq 1 ] || go_is_recent_enough; then
+        herdr_plugin_install "auto-title (automatic tab titles)" kryptamine/herdr-auto-title 899ee4e4c827129c9920c105f250628ff967ca98
+    else
+        echo "Go 1.24+ not available (found: $(go version 2>/dev/null || echo none)): skipping Herdr plugin auto-title."
+        echo "  Install a recent Go (https://go.dev/dl) and then run: $AUTO_TITLE_CMD"
+    fi
+    herdr_plugin_install "reviewr (code review pane)" persiyanov/herdr-reviewr 4c090225af706bf3aaa24b39fea890a72994f40f
+fi
+
+# Optional: one Herdr session per directory. Opt-in via HERDR_SESSION_PER_PATH in ~/.zshrc.local
+# (sourced by .zshrc before the auto-attach block). Default behavior stays a single shared session.
+if command -v herdr >/dev/null 2>&1; then
+    SESSION_LINE='export HERDR_SESSION_PER_PATH=1'
+    if grep -qsF "$SESSION_LINE" "$HOME/.zshrc.local"; then
+        echo "Per-directory Herdr sessions already enabled in ~/.zshrc.local."
+    elif [ -t 0 ]; then
+        read -r -p "Use one separate Herdr session (own server) per directory? [y/N] " SESSION_REPLY
+        case "$SESSION_REPLY" in
+            [Yy]*) echo "$SESSION_LINE" >> "$HOME/.zshrc.local" && echo "Enabled per-directory Herdr sessions in ~/.zshrc.local." \
+                || echo "Could not write ~/.zshrc.local; add this line manually: $SESSION_LINE" ;;
+            *) echo "Keeping a single shared Herdr session. To enable per-directory sessions later, add to ~/.zshrc.local: $SESSION_LINE" ;;
+        esac
+    else
+        echo "Non-interactive shell: keeping a single shared Herdr session. To enable per-directory sessions, add to ~/.zshrc.local: $SESSION_LINE"
+    fi
+fi
+
+# Optional: auto-create a Herdr space (workspace) inside the current session. Opt-in via
+# HERDR_AUTO_WORKSPACES in ~/.zshrc.local (herdr/workspaces.zsh is sourced by .zshrc). Needs jq.
+if command -v herdr >/dev/null 2>&1; then
+    WS_LINE='export HERDR_AUTO_WORKSPACES=1'
+    if grep -qsF "$WS_LINE" "$HOME/.zshrc.local"; then
+        echo "Auto-created Herdr spaces already enabled in ~/.zshrc.local."
+    elif [ -t 0 ]; then
+        read -r -p "Auto-create a Herdr space (workspace) when you cd into another project or launch an agent from one? Needs jq. [y/N] " WS_REPLY
+        case "$WS_REPLY" in
+            [Yy]*)
+                command -v jq >/dev/null 2>&1 || pkg_install jq jq jq jq || true
+                if command -v jq >/dev/null 2>&1; then
+                    echo "$WS_LINE" >> "$HOME/.zshrc.local" && echo "Enabled auto-created Herdr spaces in ~/.zshrc.local." \
+                        || echo "Could not write ~/.zshrc.local; add this line manually: $WS_LINE"
+                else
+                    echo "WARNING: jq is missing, so auto-created spaces would do nothing. Install jq (e.g. 'brew install jq' or 'sudo apt-get install -y jq'), then add to ~/.zshrc.local: $WS_LINE"
+                fi
+                ;;
+            *) echo "Not auto-creating Herdr spaces. To enable later (needs jq), add to ~/.zshrc.local: $WS_LINE" ;;
+        esac
+    else
+        echo "Non-interactive shell: not auto-creating Herdr spaces. To enable (needs jq), add to ~/.zshrc.local: $WS_LINE"
     fi
 fi
 

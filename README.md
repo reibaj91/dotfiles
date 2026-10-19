@@ -9,6 +9,7 @@ Personal zsh, terminal and Claude Code configuration.
 - `Basic.terminal` - Terminal.app profile (colors, font, cursor)
 - `ghostty/config.ghostty` - Ghostty terminal config
 - `claude/statusline.sh` - Claude Code statusline (powerline + rate limits bar)
+- `herdr/config.toml` - Herdr config (theme, notifications), linked to `~/.config/herdr/config.toml`
 - `windows/` - PowerShell equivalent for Windows (Oh My Posh + PSReadLine + posh-git)
 
 ### Plugins
@@ -81,11 +82,13 @@ Notes:
 
 - Ghostty itself isn't installed by the script (same as on macOS) — install it separately from
   https://ghostty.org before running `install.sh`, otherwise the config just sits there unused.
-- `jq` is needed for the Claude Code statusline wiring; if missing, install it with
-  `sudo apt install jq` and re-run `install.sh`, or add the `statusLine` block manually (see
+- `jq` is needed for the Claude Code statusline wiring; if missing, `install.sh` offers to install it
+  (see [Herdr config, plugins and package managers](#herdr-config-plugins-and-package-managers)), or run
+  `sudo apt install jq` yourself and re-run `install.sh`, or add the `statusLine` block manually (see
   below).
-- Tested on Ubuntu; other Debian-based distros with `apt` should work the same for the manual
-  steps above, but the script itself doesn't special-case them beyond the generic `Linux` branch.
+- Tested on Ubuntu. Debian-based distros (e.g. Parrot) use the same `apt-get` path, and Arch uses
+  `pacman`; the optional installs below are detected by package manager, not by distro name.
+  Parrot and Arch are not tested.
 - Herdr installs silently on macOS (via brew) but **prompts for confirmation on Linux** before
   running its installer, since it changes how every new terminal behaves (auto-attach). Answering
   "n", pressing enter, or running `install.sh` non-interactively (no TTY on stdin) all skip it —
@@ -176,3 +179,78 @@ Requires `brew install herdr` on macOS, or `curl -fsSL https://herdr.dev/install
 
 `brew uninstall herdr` removes the binary but leaves the `.zshrc` block and the hook in place —
 remove those manually if you uninstall.
+
+#### Herdr config, plugins and package managers
+
+Everything here is **optional**: each step asks `[y/N]` (default No), only when stdin is a TTY, and
+on decline, non-interactive runs or failure it prints the exact manual command and continues. A step that
+is already done (config already linked, plugin already installed) is skipped without asking.
+
+- **Config** — if `herdr` is installed, `install.sh` asks before linking `herdr/config.toml` to
+  `~/.config/herdr/config.toml`. Accepting replaces any existing config with this repo's theme/panel
+  settings (a real existing file is backed up to `config.toml.backup` first). If the target already
+  links to the repo file it prints "already linked" and does not ask. Rollback: delete the symlink.
+- **Plugins** (pinned by commit, skipped if already in `herdr plugin list`):
+
+  | Plugin | Purpose | Command |
+  | --- | --- | --- |
+  | `kryptamine/herdr-auto-title` | automatic tab titles; **builds with Go** | `herdr plugin install kryptamine/herdr-auto-title --ref 899ee4e4c827129c9920c105f250628ff967ca98` |
+  | `persiyanov/herdr-reviewr` | code review pane | `herdr plugin install persiyanov/herdr-reviewr --ref 4c090225af706bf3aaa24b39fea890a72994f40f` |
+
+  If `go` is missing, `install.sh` offers to install it first; without Go the auto-title plugin is skipped.
+- **Package managers** — `jq` and `go` are installed through whichever of these is found, after showing
+  the exact command and asking first:
+
+  | OS | Manager | Command |
+  | --- | --- | --- |
+  | macOS | Homebrew | `brew install <pkg>` |
+  | Ubuntu / Debian / Parrot | apt | `sudo apt-get install -y <pkg>` (Go is `golang`) |
+  | Arch | pacman | `sudo pacman -S --noconfirm <pkg>` |
+  | Windows | winget | `winget install -e --id GoLang.Go` |
+
+- **Spaces vs sessions** — Herdr has two different levels, and the two opt-ins below act on different ones:
+
+  | | Space (workspace) | Session |
+  | --- | --- | --- |
+  | What it is | a `herdr workspace`, created inside the session you are already in | a separate Herdr server (`herdr --session <name>`) |
+  | Opt-in flag | `HERDR_AUTO_WORKSPACES=1` | `HERDR_SESSION_PER_PATH=1` |
+  | Visibility | all spaces live side by side in the same session | each session only sees its own workspaces |
+  | Defined in | `herdr/workspaces.zsh` | the auto-attach block in `.zshrc` |
+
+  Both flags go in `~/.zshrc.local`, which `.zshrc` sources before the auto-attach block. Both default
+  to off, and `install.sh` offers each one with its own `[y/N]` prompt (TTY only).
+
+- **Per-directory sessions (opt-in)** — by default every new terminal runs plain `herdr` (one shared
+  session), exactly as before. If you answer yes to the prompt in `install.sh` (or add
+  `export HERDR_SESSION_PER_PATH=1` to `~/.zshrc.local` yourself), `.zshrc` runs
+  `herdr --session <folder-slug>-<6-char-hash-of-path>` instead, so each project directory gets its
+  own separate session (its own server) and reopening a terminal there reattaches to it. Workspaces
+  are not shared between these sessions. `.zshrc` now sources
+  `~/.zshrc.local` (if present) before the auto-attach block; keep personal settings there. On
+  Windows this zsh variable does not apply (no code in `install.ps1`).
+- **Auto-created spaces (opt-in)** — with `export HERDR_AUTO_WORKSPACES=1` in `~/.zshrc.local` (or by
+  answering yes to the `install.sh` prompt), `.zshrc` sources `herdr/workspaces.zsh` (resolved through
+  the `~/.zshrc` symlink, so it works from the repo). It needs **zsh and `jq`**, and only acts inside
+  Herdr (`HERDR_ENV` set); without the flag nothing is defined. It adds two things, both creating
+  spaces in the *current* session with `herdr workspace create`:
+  - **`cd` hook** — when you `cd` into a different git root, a space labelled with the repo folder
+    name is created, unless one with that label already exists. Moving around inside the same project
+    does nothing.
+  - **Agent wrapper** — `claude`, `agy`, `grok` and `opencode` launched interactively (no args, or
+    flags only) from a project other than the current space's open a new space rooted there and run
+    the agent in it. Same project, `-p/--print`, `--version`, `--help` and positional prompts or
+    subcommands run in place. If a space with that label already exists, the wrapper **focuses it
+    instead of creating a duplicate and does not launch the agent** (run it from that space). Bypass a
+    single call with `command claude`.
+
+  Known limitation: both mechanisms match spaces by **folder name only**, so two repos with the same
+  basename in different paths share one space.
+
+  Both use `--focus`, so Herdr **moves your focus to the new space**; delete `--focus` in
+  `herdr/workspaces.zsh` to create spaces in the background. The helper `__herdr_agent_redirect <cmd> "$@"`
+  is reusable: machine-specific wrappers (for example a `gemini` one with your own env or NVM setup)
+  are not included and belong in `~/.zshrc.local`, calling that function and falling back to
+  `command <cmd>`. Rollback: remove the flag and open a new terminal.
+- **Windows is untested** — `windows/install.ps1` has the equivalent config link (assumes
+  `%USERPROFILE%\.config\herdr`, with a `Read-Host` consent), the same two pinned plugins with a `Read-Host` consent, and Go via
+  `winget` (`GoLang.Go`), but none of it has been run on a real Windows machine.
